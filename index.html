@@ -6,26 +6,40 @@
   <title>iPhone転売 利益計算Pro</title>
   <style>
     body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial; background:#f6f7fb; margin:0; padding:18px;}
-    .card{max-width:520px; margin:0 auto; background:#fff; border-radius:16px; padding:18px; box-shadow:0 8px 24px rgba(0,0,0,.06);}
+    .card{max-width:560px; margin:0 auto; background:#fff; border-radius:16px; padding:18px; box-shadow:0 8px 24px rgba(0,0,0,.06);}
     h1{font-size:18px; margin:0 0 10px;}
     .row{display:grid; grid-template-columns:1fr; gap:10px; margin:10px 0;}
     label{font-size:12px; color:#555;}
     input,select,button{width:100%; padding:12px; border-radius:12px; border:1px solid #ddd; font-size:16px; box-sizing:border-box;}
-    button{border:none; background:#111; color:#fff; font-weight:700;}
+    button{border:none; background:#111; color:#fff; font-weight:800;}
     .grid2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
     .pill{padding:10px 12px; background:#f2f3f6; border-radius:12px; font-size:14px;}
-    .ok{color:#0a7a2f; font-weight:800;}
-    .ng{color:#c62828; font-weight:800;}
+    .ok{color:#0a7a2f; font-weight:900;}
+    .ng{color:#c62828; font-weight:900;}
     .muted{color:#777; font-size:12px;}
     .big{font-size:20px; font-weight:900;}
+    table{width:100%; border-collapse:collapse; font-size:12px;}
+    th,td{padding:8px; border-bottom:1px solid #eee; text-align:left; vertical-align:top;}
+    th{color:#666; font-weight:700;}
+    .btnRow{display:flex; gap:10px;}
+    .btnGhost{background:#fff; color:#111; border:1px solid #ddd;}
+    a{color:#2563eb; text-decoration:none;}
+    .mono{font-family:ui-monospace,SFMono-Regular,Menlo,Monaco,Consolas,monospace;}
   </style>
 </head>
 <body>
   <div class="card">
-    <h1>📱 iPhone転売 利益計算Pro（相場/最大仕入れ/OK判定）</h1>
-    <div class="muted">※相場は手動更新（まずはこれでOK）。あとで自動化も可能。</div>
+    <h1>📱 iPhone転売 利益計算Pro（URL/相場/最大仕入れ/OK判定/履歴）</h1>
+    <div class="muted">
+      ※メルカリURLは「保存・履歴用」です（ページ内容を自動取得はしません）。価格はコピペ入力でOK。
+    </div>
 
     <div class="row">
+      <div>
+        <label>メルカリURL（貼るだけ / 履歴に保存）</label>
+        <input id="url" type="url" placeholder="https://jp.mercari.com/item/..." />
+      </div>
+
       <div>
         <label>機種</label>
         <select id="model"></select>
@@ -44,7 +58,7 @@
 
       <div class="grid2">
         <div>
-          <label>販売予定価格（円）</label>
+          <label>販売予定価格（円）※メルカリ価格コピペOK</label>
           <input id="sell" type="number" placeholder="例：58000" />
         </div>
         <div>
@@ -64,19 +78,42 @@
         </div>
       </div>
 
-      <button id="calcBtn">計算</button>
+      <div class="btnRow">
+        <button id="calcBtn">計算（履歴に保存）</button>
+        <button id="clearBtn" class="btnGhost" type="button">履歴を全削除</button>
+      </div>
+
+      <div class="pill">手数料（10%）：<span class="big" id="fee">-</span> 円</div>
+      <div class="pill">最大仕入れ可能額（逆算）：<span class="big" id="maxBuy">-</span> 円</div>
+      <div class="pill">実際の利益：<span class="big" id="profit">-</span> 円 / 利益率：<span class="big" id="margin">-</span> %</div>
+      <div class="pill">判定：<span class="big" id="judge">-</span> <span class="muted" id="reason"></span></div>
 
       <div class="pill">
-        手数料（10%）：<span class="big" id="fee">-</span> 円
+        今月の合計利益：<span class="big" id="monthSum">-</span> 円
+        <div class="muted">（端末内に保存：iPhoneを変えると履歴は消えます）</div>
       </div>
+
       <div class="pill">
-        最大仕入れ可能額（逆算）：<span class="big" id="maxBuy">-</span> 円
-      </div>
-      <div class="pill">
-        実際の利益：<span class="big" id="profit">-</span> 円 / 利益率：<span class="big" id="margin">-</span> %
-      </div>
-      <div class="pill">
-        判定：<span class="big" id="judge">-</span>
+        <div style="display:flex; justify-content:space-between; align-items:center; gap:10px;">
+          <div><b>履歴</b> <span class="muted">(最新20件)</span></div>
+          <div class="muted mono" id="histCount"></div>
+        </div>
+        <div style="overflow:auto; margin-top:8px;">
+          <table>
+            <thead>
+              <tr>
+                <th>日時</th>
+                <th>機種</th>
+                <th>売</th>
+                <th>仕入</th>
+                <th>利益</th>
+                <th>判定</th>
+                <th>URL</th>
+              </tr>
+            </thead>
+            <tbody id="histBody"></tbody>
+          </table>
+        </div>
       </div>
 
       <div class="muted">ホーム画面追加：Safari → 共有 →「ホーム画面に追加」</div>
@@ -84,7 +121,7 @@
   </div>
 
 <script>
-  // ★相場データ（あとで増やせます）
+  // 相場データ（必要なら増やしてOK）
   const MARKET = [
     { name:"iPhone11", price:24000, min:15 },
     { name:"iPhone12", price:38000, min:15 },
@@ -96,10 +133,11 @@
     { name:"iPhone15 Pro", price:105000, min:15 }
   ];
 
-  const el = (id)=>document.getElementById(id);
+  const STORAGE_KEY = "iphone_profit_history_v1";
 
-  function yen(n){ return isFinite(n) ? Math.round(n).toString() : "-"; }
-  function pct(n){ return isFinite(n) ? (Math.round(n*10)/10).toString() : "-"; }
+  const el = (id)=>document.getElementById(id);
+  const yen = (n)=> isFinite(n) ? Math.round(n).toString() : "-";
+  const pct = (n)=> isFinite(n) ? (Math.round(n*10)/10).toString() : "-";
 
   function fillModels(){
     const s = el("model");
@@ -118,10 +156,92 @@
     const m = MARKET[Number(el("model").value)];
     el("market").value = m.price;
     el("minMargin").value = m.min;
-    if(!el("sell").value) el("sell").value = m.price; // 初期は相場を販売予定に入れる
+    if(!el("sell").value) el("sell").value = m.price; // 初期は相場を入れる
   }
 
-  function calc(){
+  function loadHistory(){
+    try{
+      const raw = localStorage.getItem(STORAGE_KEY);
+      const arr = raw ? JSON.parse(raw) : [];
+      return Array.isArray(arr) ? arr : [];
+    }catch(e){
+      return [];
+    }
+  }
+
+  function saveHistory(arr){
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(arr));
+  }
+
+  function monthKey(d){
+    const yy = d.getFullYear();
+    const mm = String(d.getMonth()+1).padStart(2,"0");
+    return `${yy}-${mm}`;
+  }
+
+  function renderHistory(){
+    const hist = loadHistory();
+    el("histCount").textContent = `保存件数: ${hist.length}`;
+    const tbody = el("histBody");
+    tbody.innerHTML = "";
+
+    // 月合計（今月）
+    const now = new Date();
+    const mk = monthKey(now);
+    const monthSum = hist
+      .filter(x => x.monthKey === mk)
+      .reduce((acc,x)=> acc + (Number(x.profit)||0), 0);
+    el("monthSum").textContent = yen(monthSum);
+
+    // 最新20件
+    const show = hist.slice(-20).reverse();
+    for(const x of show){
+      const tr = document.createElement("tr");
+
+      const tdDate = document.createElement("td");
+      tdDate.textContent = x.timeText || "-";
+      tr.appendChild(tdDate);
+
+      const tdModel = document.createElement("td");
+      tdModel.textContent = x.model || "-";
+      tr.appendChild(tdModel);
+
+      const tdSell = document.createElement("td");
+      tdSell.textContent = x.sell ?? "-";
+      tr.appendChild(tdSell);
+
+      const tdBuy = document.createElement("td");
+      tdBuy.textContent = x.buy ?? "-";
+      tr.appendChild(tdBuy);
+
+      const tdProfit = document.createElement("td");
+      tdProfit.textContent = x.profit ?? "-";
+      tr.appendChild(tdProfit);
+
+      const tdJudge = document.createElement("td");
+      tdJudge.innerHTML = x.ok ? `<span class="ok">OK</span>` : `<span class="ng">NG</span>`;
+      tr.appendChild(tdJudge);
+
+      const tdUrl = document.createElement("td");
+      if(x.url){
+        const a = document.createElement("a");
+        a.href = x.url;
+        a.target = "_blank";
+        a.rel = "noopener";
+        a.textContent = "開く";
+        tdUrl.appendChild(a);
+      }else{
+        tdUrl.textContent = "-";
+      }
+      tr.appendChild(tdUrl);
+
+      tbody.appendChild(tr);
+    }
+  }
+
+  function calcAndSave(){
+    const m = MARKET[Number(el("model").value)];
+    const url = (el("url").value || "").trim();
     const sell = Number(el("sell").value);
     const ship = Number(el("ship").value);
     const target = Number(el("target").value);
@@ -138,18 +258,68 @@
     el("profit").textContent = yen(profit);
     el("margin").textContent = pct(margin);
 
-    let j = "—";
-    if(isFinite(margin)){
-      if(profit >= target && margin >= minMargin) j = `<span class="ok">✅ OK</span>`;
-      else j = `<span class="ng">❌ NG</span>`;
+    // 判定と理由
+    let ok = false;
+    let reason = [];
+    if(!isFinite(sell) || sell<=0) reason.push("売値が未入力");
+    if(!isFinite(buy) || buy<=0) reason.push("仕入れが未入力");
+    if(isFinite(profit) && profit < target) reason.push(`利益<目標(${target})`);
+    if(isFinite(margin) && margin < minMargin) reason.push(`利益率<${minMargin}%`);
+    if(isFinite(buy) && isFinite(maxBuy) && buy > maxBuy) reason.push("仕入れ>最大仕入れ");
+
+    if(reason.length===0){
+      ok = true;
+      el("judge").innerHTML = `<span class="ok">✅ OK</span>`;
+      el("reason").textContent = "（条件クリア）";
+    }else{
+      ok = false;
+      el("judge").innerHTML = `<span class="ng">❌ NG</span>`;
+      el("reason").textContent = "（" + reason.join(" / ") + "）";
     }
-    el("judge").innerHTML = j;
+
+    // 入力が足りないときは保存しない
+    if(!isFinite(sell) || sell<=0 || !isFinite(buy) || buy<=0) {
+      renderHistory();
+      return;
+    }
+
+    const now = new Date();
+    const entry = {
+      ts: now.getTime(),
+      timeText: now.toLocaleString("ja-JP"),
+      monthKey: monthKey(now),
+      model: m.name,
+      url: url || "",
+      sell: Math.round(sell),
+      buy: Math.round(buy),
+      ship: Math.round(ship),
+      fee: Math.round(fee),
+      profit: Math.round(profit),
+      margin: Math.round(margin*10)/10,
+      target: Math.round(target),
+      maxBuy: Math.round(maxBuy),
+      ok
+    };
+
+    const hist = loadHistory();
+    hist.push(entry);
+    saveHistory(hist);
+    renderHistory();
+  }
+
+  function clearHistory(){
+    if(confirm("履歴を全削除します。よろしいですか？")){
+      localStorage.removeItem(STORAGE_KEY);
+      renderHistory();
+    }
   }
 
   el("model").addEventListener("change", syncMarket);
-  el("calcBtn").addEventListener("click", calc);
+  el("calcBtn").addEventListener("click", calcAndSave);
+  el("clearBtn").addEventListener("click", clearHistory);
 
   fillModels();
+  renderHistory();
 </script>
 </body>
 </html>
